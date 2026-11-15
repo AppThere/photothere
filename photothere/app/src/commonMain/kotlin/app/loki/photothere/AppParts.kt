@@ -508,6 +508,39 @@ class CanvasTools {
     private var active by androidx.compose.runtime.mutableStateOf<String?>(null)
     /** Which work-path anchor Direct Selection is dragging: (subpath, knot). */
     private var grabbed: Pair<Int, Int>? = null
+    /** Where the stroke's ink goes first: the display's front buffer where the platform has one (ArtSurface sets it). */
+    var ink: app.loki.kit.InkLayer = app.loki.kit.NoInkLayer
+    /** True while committed ink waits for the engine's picture of the stroke; [inkCommits] counts strokes, to time a fallback clear. */
+    var inkShown = false
+    var inkCommits by androidx.compose.runtime.mutableIntStateOf(0)
+        private set
+    private var lastInk: app.loki.kit.CanvasPoint? = null
+
+    /** The wet ink of a stroke at [p]: width in screen pixels and colour, following the brush and, where it says so, the pen's pressure. */
+    private fun wet(tool: String, p: app.loki.kit.CanvasPoint, state: JsonElement?, zoom: Float): Pair<Float, Color> {
+        val brush = state.obj()?.get("brush.get")
+        val size = (brush.num("size") ?: 20.0).toFloat() * zoom
+        val base = when (tool) {
+            "Brush", "Pencil", "MixerBrush" -> colourOf(session(state).obj()?.get("foreground")).copy(alpha = (brush.num("opacity") ?: 1.0).toFloat().coerceIn(0.1f, 1f))
+            "Eraser", "BackgroundEraser" -> Color.White.copy(alpha = 0.85f)
+            else -> Color(0xFF4C9AFF).copy(alpha = 0.5f)
+        }
+        val width = (if (brush.bool("pressureSize") == true) size * p.pressure else size).coerceAtLeast(1f)
+        val colour = if (brush.bool("pressureOpacity") == true) base.copy(alpha = base.alpha * p.pressure.coerceIn(0.05f, 1f)) else base
+        return width to colour
+    }
+
+    /** The new pieces of the stroke, into the front buffer at once (the canvas overlay draws them where there is none). */
+    private fun inkTo(points: List<app.loki.kit.CanvasPoint>, tool: String, state: JsonElement?, view: app.loki.kit.CanvasView) {
+        if (!ink.active || tool !in STROKES) return
+        for (q in points) {
+            val p = lastInk ?: q
+            val (w, c) = wet(tool, q, state, view.zoom)
+            val a = view.toScreen(p.x, p.y); val b = view.toScreen(q.x, q.y)
+            ink.draw(app.loki.kit.InkSegment(a.x, a.y, b.x, b.y, w, c))
+            lastInk = q
+        }
+    }
 
     fun pans(tool: String) = tool == "Hand"
 
@@ -544,12 +577,14 @@ class CanvasTools {
                 if (i.barrel) { sample(ws, p); return }
                 active = if (i.device == app.loki.kit.InputDevice.Eraser) "Eraser" else tool
                 points.clear(); points.addAll(pts); hover = null
+                lastInk = null; inkTo(pts, active.orEmpty(), ws.state, view)
             }
-            app.loki.kit.CanvasPhase.Drag -> if (active != null) { points.addAll(pts); hover = pts.lastOrNull() }
-            app.loki.kit.CanvasPhase.Cancel -> { points.clear(); active = null }
+            app.loki.kit.CanvasPhase.Drag -> if (active != null) { points.addAll(pts); hover = pts.lastOrNull(); inkTo(pts, active.orEmpty(), ws.state, view) }
+            app.loki.kit.CanvasPhase.Cancel -> { points.clear(); active = null; ink.cancel() }
             app.loki.kit.CanvasPhase.Up -> {
                 val t = active ?: return
                 points.addAll(pts)
+                if (ink.active && t in STROKES) { inkTo(pts, t, ws.state, view); ink.commit(); inkShown = true; inkCommits++ }
                 commit(t, points.toList(), i.mods, ws, view)
                 points.clear(); active = null
             }
@@ -751,24 +786,14 @@ class CanvasTools {
             val a = view.toScreen(pts.first().x, pts.first().y); val b = view.toScreen(pts.last().x, pts.last().y)
             val dash = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(6f, 4f))
             when {
-                tool in STROKES -> {
-                    // Wet ink: the stroke as it is drawn, in the colour it will be, its width and opacity
-                    // following the pen's pressure where the brush says they do.
-                    val fg = colourOf(session(state).obj()?.get("foreground"))
-                    val bySize = brush.bool("pressureSize") == true
-                    val byOpacity = brush.bool("pressureOpacity") == true
-                    val base = when (tool) {
-                        "Brush", "Pencil", "MixerBrush" -> fg.copy(alpha = (brush.num("opacity") ?: 1.0).toFloat().coerceIn(0.1f, 1f))
-                        "Eraser", "BackgroundEraser" -> Color.White.copy(alpha = 0.85f)
-                        else -> accent.copy(alpha = 0.5f)
-                    }
-                    fun width(p: app.loki.kit.CanvasPoint) = (if (bySize) size * p.pressure else size).coerceAtLeast(1f)
-                    fun colour(p: app.loki.kit.CanvasPoint) = if (byOpacity) base.copy(alpha = base.alpha * p.pressure.coerceIn(0.05f, 1f)) else base
+                // Wet ink in the overlay, where the front buffer did not already draw it.
+                tool in STROKES -> if (!ink.active) {
                     for (k in 1 until pts.size) {
                         val p = pts[k - 1]; val q = pts[k]
-                        drawLine(colour(q), view.toScreen(p.x, p.y), view.toScreen(q.x, q.y), strokeWidth = width(q), cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                        val (w, c) = wet(tool, q, state, view.zoom)
+                        drawLine(c, view.toScreen(p.x, p.y), view.toScreen(q.x, q.y), strokeWidth = w, cap = androidx.compose.ui.graphics.StrokeCap.Round)
                     }
-                    if (pts.size == 1) drawCircle(colour(pts[0]), width(pts[0]) / 2f, a)
+                    if (pts.size == 1) { val (w, c) = wet(tool, pts[0], state, view.zoom); drawCircle(c, w / 2f, a) }
                 }
                 tool in BOXES || tool == "SingleRowMarquee" || tool == "SingleColumnMarquee" -> {
                     val tl = androidx.compose.ui.geometry.Offset(minOf(a.x, b.x), minOf(a.y, b.y))

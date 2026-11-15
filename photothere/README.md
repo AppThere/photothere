@@ -23,6 +23,11 @@ app's parts are in `AppParts.kt`.
 
 ## The canvas
 
+On Android 10 and later a painting stroke's ink goes straight to the display's front buffer as
+the pen moves (Loki Kit's `InkLayer`), a frame or two ahead of the app's own drawing, and stays
+until the engine's picture of the stroke is on screen.
+
+
 Every tool of the palette that has an engine command works on the canvas, with a mouse, a finger
 or a pen:
 
@@ -54,7 +59,7 @@ writes back to the file that was opened.
 On a **phone or tablet** the menus open from one button as a sheet (from the bottom on a phone,
 from the side on a tablet), and the document's title opens File.
 
-Not yet: Android's front-buffered (lowest-latency) ink, pen tilt on the desktop and iOS (Android
+Not yet: pen tilt on the desktop and iOS (Android
 reads it), and the path tools' finer behaviours (adding and deleting anchors on a path,
 converting points).
 
