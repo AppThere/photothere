@@ -59,6 +59,19 @@ writes back to the file that was opened.
 On a **phone or tablet** the menus open from one button as a sheet (from the bottom on a phone,
 from the side on a tablet), and the document's title opens File.
 
+**Colours and options.** The foreground and background colours sit beside the tools (they stay
+put while the tools scroll) and on the options bar of every tool that paints: a tap on either
+opens the colour picker (a saturation and brightness square, a hue strip, a hex field, a palette
+and the colours picked lately). The options bar sets the brush (a preset, Size, Hardness, Opacity,
+Flow, and whether a pen's pressure drives size or opacity), a selection tool's mode (New, Add,
+Subtract, Intersect: what Shift and Alt do with a keyboard), a Magic Wand's, Paint Bucket's and
+Magic Eraser's Tolerance and Contiguous, a gradient's style, new type's size, a polygon's sides and
+a line's weight; it scrolls sideways on a phone. The Layers panel sets the selected layer's blend
+mode and opacity and moves it up or down; a tap on a History row goes back to that state.
+
+With a **keyboard** (a desktop, a Chromebook, a tablet's keyboard cover) the engine's shortcuts
+run its commands (Ctrl+Z, Ctrl+Shift+Z…).
+
 Not yet: pen tilt on the desktop and iOS (Android
 reads it), and the path tools' finer behaviours (adding and deleting anchors on a path,
 converting points).
