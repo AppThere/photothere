@@ -1,0 +1,24 @@
+# PhotoThere's own Cargo workspace. It is deliberately separate from the PhotoCraft workspace at the
+# repository root: the FFI crate needs `unsafe`, which the engine workspace forbids.
+[workspace]
+resolver = "3"
+members = ["ffi"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+rust-version = "1.95"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+panic = "unwind" # the FFI layer catches panics at the boundary
+
+# Mirrors the non-egui patches in the repository root Cargo.toml; keep in step.
+[patch.crates-io]
+# craft-pdf's vendored Hayro trees: consumers patch the same craft-libs revision (crates/pdf README).
+hayro = { git = "https://github.com/storytold/craft-libs", rev = "6e03f65bf45181db77ba6229716e6624db9eb25b" }
+hayro-syntax = { git = "https://github.com/storytold/craft-libs", rev = "6e03f65bf45181db77ba6229716e6624db9eb25b" }
+hayro-interpret = { git = "https://github.com/storytold/craft-libs", rev = "6e03f65bf45181db77ba6229716e6624db9eb25b" }
+hayro-jbig2 = { git = "https://github.com/storytold/craft-libs", rev = "6e03f65bf45181db77ba6229716e6624db9eb25b" }
