@@ -13,6 +13,51 @@ How it was made, and how to continue: Loki Text's
 and [`egui2compose`](https://github.com/AppThere/loki-text/blob/main/loki-text/docs/egui2compose.md)
 (in the `loki-text/` folder of the WordCraft fork). Phases 1–4 are done here, and phase 5 is started.
 
+## The window
+
+As on the desktop, not a ribbon: dark at the start, a text menu bar with every engine command, an
+options bar, a column of tools, the canvas under its document tab, a dock of panels with an icon
+strip, and a status bar. App-specific: the desktop's tool palette in its slots (alternates on a long press or right click), the foreground and background colours with swap and reset, brush size and hardness in the options bar, and the Properties, Layers (show, hide, select, new, duplicate, delete), Channels and History panels. On a phone the tools and the panel icons share a
+row under the canvas and a panel opens over its lower half. It is the kit's `CanvasWorkspace`; this
+app's parts are in `AppParts.kt`.
+
+## The canvas
+
+Every tool of the palette that has an engine command works on the canvas, with a mouse, a finger
+or a pen:
+
+* **Painting** (Brush, Pencil, Mixer Brush, Eraser, the stamps, healing, Blur/Sharpen/Smudge,
+  Dodge/Burn/Sponge, History Brush): the stroke is drawn at once as wet ink, with its width and
+  opacity following the pen when the brush's **Pressure: size** / **Pressure: opacity** are on (the
+  options bar), and sent to the engine whole when the pen lifts (`paint.stroke` and the like, with
+  each point's pressure, tilt and time). A pen's **eraser end** erases whatever tool is in hand; its
+  **side button** (an S Pen's) samples a colour.
+* **Selecting**: marquees (Shift adds, Alt subtracts), lassos, Quick Selection, Object Selection,
+  Magic Wand. **Crop**, **Move**, **Gradient**, **Paint Bucket**, **Magic Eraser**, **Red Eye**,
+  **Eyedropper**, the **shape** tools and **Line**, **Type** (places text; typing on the canvas is
+  not built yet), **Hand** and **Zoom**.
+* **Navigation**: two fingers pan and pinch; Ctrl+wheel zooms, the wheel scrolls; the zoom pill at
+  the bottom left zooms and fits. Once a pen has touched the canvas a finger no longer paints (palm
+  rejection); before that a finger paints, for a phone with no pen.
+
+**Type** opens a text field where it is tapped (on a tablet or phone, the on-screen keyboard), or
+over the text it is tapped on, to edit it. The **Pen** tools build the work path: a tap adds a
+corner, a drag pulls out smooth handles, a tap on the first point closes it (or Done in the
+options bar); Freeform Pen draws it, Curvature Pen smooths it, Direct Selection drags its anchors,
+and with a work path the options bar offers Selection, Fill, Stroke and Delete. The selection
+shows as **marching ants**, traced from the engine's selection mask (`loki.selectionOutline`).
+
+**File** has Open…, Save, Save As… and Export as PNG… (the desktop's own commands, which the
+engine has on no menu); on Android, Open and Save As use the system's document pickers, and Save
+writes back to the file that was opened.
+
+On a **phone or tablet** the menus open from one button as a sheet (from the bottom on a phone,
+from the side on a tablet), and the document's title opens File.
+
+Not yet: Android's front-buffered (lowest-latency) ink, pen tilt on the desktop and iOS (Android
+reads it), and the path tools' finer behaviours (adding and deleting anchors on a path,
+converting points).
+
 ## Layout
 
 - `Cargo.toml`, `ffi/`: its own Cargo workspace (the engine workspace forbids `unsafe`; the FFI
@@ -55,8 +100,6 @@ The surface: `documents`: each open document's composite (`photocraft_compose::t
 
 Not done (the work that is left, in the playbook's order):
 
-- **Pointer input on the surface** (phase 5). Every pointer command is in `POINTER_GAPS`
-  (`Profile.kt`); the canvas is view-only, and the tool strip selects tools that nothing uses yet.
 - **Command state and requests** (phase 6). `loki.commandState` reports disabled commands from
   the engine's own checks; `on` (toggles) is empty, and `loki.uiRequests` is always empty because
   the headless backend handles or drops requests itself.

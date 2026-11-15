@@ -12,6 +12,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 photocraft-automation = { path = "../../crates/automation" }
 photocraft-engine = { path = "../../crates/engine" }
 photocraft-compose = { path = "../../crates/compose" }
+photocraft-raster = { path = "../../crates/raster" }
 serde_json = "1"
 
 [lints.clippy]
