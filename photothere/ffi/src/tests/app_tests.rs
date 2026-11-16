@@ -103,3 +103,22 @@ fn tool_options_layer_controls_and_history_reach_the_engine() {
     exec(s, "paint.magicEraser", serde_json::json!({"x": 5, "y": 5, "tolerance": 10, "contiguous": true}));
     unsafe { loki_session_free(s) };
 }
+
+/// The frame Free Transform opens on, and the quad it is sent to, as the box's handles do.
+#[test]
+fn the_transform_frame_is_the_layers_content_and_a_quad_moves_it() {
+    let s = loki_session_new();
+    assert!(call(s, "loki.transformFrame", None)["result"]["frame"].is_null() || call(s, "loki.transformFrame", None)["result"]["frame"].is_array());
+    exec(s, "layer.new.layer", serde_json::json!({}));
+    exec(s, "tools.setColors", serde_json::json!({"foreground": "#ff0000"}));
+    exec(s, "select.rect", serde_json::json!({"x": 100, "y": 100, "width": 200, "height": 100}));
+    exec(s, "edit.fill", serde_json::json!({"color": "#ff0000"}));
+    exec(s, "select.deselect", serde_json::json!({}));
+    let f = call(s, "loki.transformFrame", None)["result"]["frame"].clone();
+    assert_eq!(f, serde_json::json!([100, 100, 300, 200]), "{f}");
+    // Scale about the top-left corner by 2, as dragging the bottom-right handle out would.
+    exec(s, "edit.transform", serde_json::json!({"rect": [100, 100, 300, 200], "quad": [[100, 100], [500, 100], [500, 300], [100, 300]]}));
+    let f = call(s, "loki.transformFrame", None)["result"]["frame"].clone();
+    assert_eq!(f, serde_json::json!([100, 100, 500, 300]), "{f}");
+    unsafe { loki_session_free(s) };
+}

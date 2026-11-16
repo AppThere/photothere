@@ -69,6 +69,13 @@ Magic Eraser's Tolerance and Contiguous, a gradient's style, new type's size, a 
 a line's weight; it scrolls sideways on a phone. The Layers panel sets the selected layer's blend
 mode and opacity and moves it up or down; a tap on a History row goes back to that state.
 
+**Transform.** With the Move tool, the selected layers get a box with eight handles and a knob:
+drag a handle to scale (Shift keeps the shape, Alt scales about the centre), the knob to turn (Shift
+snaps to 15°). The picture changes when the finger lifts (`edit.transform`; until then the outline
+shows where it will go). Handles are finger-sized and work after a pen has been used. On a touch
+screen, which has no Shift or Alt, the **Shift** and **Alt** chips on the options bar stand in for
+them (they stay on until tapped again) for these and for selections.
+
 With a **keyboard** (a desktop, a Chromebook, a tablet's keyboard cover) the engine's shortcuts
 run its commands (Ctrl+Z, Ctrl+Shift+Z…).
 

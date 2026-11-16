@@ -13,6 +13,7 @@ photocraft-automation = { path = "../../crates/automation" }
 photocraft-engine = { path = "../../crates/engine" }
 photocraft-compose = { path = "../../crates/compose" }
 photocraft-raster = { path = "../../crates/raster" }
+photocraft-geom = { path = "../../crates/geom" }
 serde_json = "1"
 
 [lints.clippy]

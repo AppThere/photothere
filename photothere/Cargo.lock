@@ -2067,6 +2067,7 @@ dependencies = [
  "photocraft-automation",
  "photocraft-compose",
  "photocraft-engine",
+ "photocraft-geom",
  "photocraft-raster",
  "serde_json",
 ]
