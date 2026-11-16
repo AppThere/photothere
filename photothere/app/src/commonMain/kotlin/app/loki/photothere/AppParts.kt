@@ -12,9 +12,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -38,10 +39,15 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.loki.kit.ChoiceChip
 import app.loki.kit.DockPanel
+import app.loki.kit.NumberChip
+import app.loki.kit.ToggleChip
 import app.loki.kit.EngineClient
 import app.loki.kit.RailTool
+import com.composables.icons.lucide.ArrowDown
 import com.composables.icons.lucide.ArrowLeftRight
+import com.composables.icons.lucide.ArrowUp
 import com.composables.icons.lucide.Bandage
 import com.composables.icons.lucide.Blend
 import com.composables.icons.lucide.Brush
@@ -57,12 +63,10 @@ import com.composables.icons.lucide.History
 import com.composables.icons.lucide.Lasso
 import com.composables.icons.lucide.Layers
 import com.composables.icons.lucide.Lucide
-import com.composables.icons.lucide.Minus
 import com.composables.icons.lucide.Move
 import com.composables.icons.lucide.MousePointer2
 import com.composables.icons.lucide.PenTool
 import com.composables.icons.lucide.Pipette
-import com.composables.icons.lucide.Plus
 import com.composables.icons.lucide.RotateCcw
 import com.composables.icons.lucide.Shapes
 import com.composables.icons.lucide.SlidersHorizontal
@@ -86,7 +90,7 @@ import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 
 /** The document, then the session (foreground and background colours, open documents). */
-val STATE_COMMANDS: List<String> = listOf("document.inspect", "session.inspect", "brush.get", "path.info")
+val STATE_COMMANDS: List<String> = listOf("document.inspect", "session.inspect", "brush.get", "path.info", "brush.presets.list")
 
 /** Commands this file runs, so the coverage test checks the engine still has them. */
 val PANEL_COMMANDS: Set<String> = setOf(
@@ -101,6 +105,8 @@ val PANEL_COMMANDS: Set<String> = setOf(
     "image.crop", "layer.translate", "shape.create", "type.create", "document.sampleColor", "tools.setColors", "tools.setBrush", "brush.get",
     "path.set", "path.info", "path.moveAnchors", "path.toSelection", "path.fill", "path.stroke", "path.delete",
     "type.hitTest", "type.info", "type.edit", "file.saveACopy",
+    // The options bar, the colour wells and the panels' own controls.
+    "brush.presets.list", "history.selectState", "layer.arrange.bringForward", "layer.arrange.sendBackward",
 )
 
 val FIRST_PANEL: String? = "layers"
@@ -199,45 +205,72 @@ private val BRUSH_TOOLS = setOf("Brush", "Pencil", "ColorReplacement", "MixerBru
 
 private val NONE = JsonObject(emptyMap())
 
-/** The options bar: the tool in hand, and for a tool that paints, its brush's size and hardness. */
+/** The tools that put the foreground colour on the picture: their options bar shows it, to change it there. */
+private val COLOUR_TOOLS = setOf("Brush", "Pencil", "MixerBrush", "ColorReplacement", "PaintBucket", "Gradient", "Type", "VerticalType",
+    "Rectangle", "EllipseShape", "Triangle", "Polygon", "Star", "Line", "Eyedropper")
+
+/** The tools that fill or select by how alike colours are. */
+private val TOLERANCE_TOOLS = setOf("MagicWand", "PaintBucket", "MagicEraser")
+
+/**
+ * What the options bar sets that the engine keeps no session state for: these go with each command
+ * the tool runs (a wand's tolerance, a gradient's style, new type's size).
+ */
+object ToolOptions {
+    var tolerance by androidx.compose.runtime.mutableIntStateOf(32)
+    var contiguous by androidx.compose.runtime.mutableStateOf(true)
+    var gradientStyle by androidx.compose.runtime.mutableStateOf("linear")
+    var typeSize by androidx.compose.runtime.mutableIntStateOf(24)
+    var sides by androidx.compose.runtime.mutableIntStateOf(5)
+    var lineWeight by androidx.compose.runtime.mutableIntStateOf(4)
+    /** What a new selection does to the one there is, where no Shift or Alt says: replace, add, subtract, intersect. */
+    var selectMode by androidx.compose.runtime.mutableStateOf("replace")
+}
+
+private val SELECT_MODES = listOf("replace" to "New", "add" to "Add", "subtract" to "Subtract", "intersect" to "Intersect")
+
+/** The tools whose selection combines with the one there is. */
+private val MODE_TOOLS = setOf("RectMarquee", "EllipseMarquee", "SingleRowMarquee", "SingleColumnMarquee", "Lasso", "PolygonLasso", "MagneticLasso", "ObjectSelection", "MagicWand")
+
+private val GRADIENT_STYLES = listOf("linear" to "Linear", "radial" to "Radial", "angle" to "Angle", "reflected" to "Reflected", "diamond" to "Diamond")
+
+/** The options bar: the tool in hand and what it paints with (it scrolls sideways where the window is narrow). */
 @Composable
 fun OptionsBar(tool: String, tools: List<RailTool>, state: JsonElement?, run: (String, JsonObject) -> Unit) {
     val t = tools.flatMap { listOf(it) + it.alternates }.firstOrNull { it.id == tool }
-    Row(Modifier.fillMaxWidth().height(40.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(
+        Modifier.fillMaxWidth().height(if (app.loki.kit.isTouchPlatform) 48.dp else 40.dp).horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
         t?.icon?.let { Icon(it, contentDescription = null, modifier = Modifier.size(18.dp)) }
-        Text(t?.label ?: tool, style = MaterialTheme.typography.labelLarge)
+        Text(t?.label ?: tool, style = MaterialTheme.typography.labelLarge, maxLines = 1)
+        if (tool in COLOUR_TOOLS) { VerticalDivider(Modifier.height(24.dp)); ColourWells(state, run, 22.dp, withButtons = true) }
         if (tool in PEN_TOOLS) PenOptions(state, run)
         if (tool in BRUSH_TOOLS) {
             val brush = state.obj()?.get("brush.get")
+            fun set(key: String, v: Double) = run("tools.setBrush", buildJsonObject { put(key, v) })
             VerticalDivider(Modifier.height(24.dp))
-            brush.num("size")?.let { Text("${it.toInt()} px", style = MaterialTheme.typography.labelMedium) }
-            Stepper("Size", "tools.decreaseBrushSize", "tools.increaseBrushSize", run)
-            Stepper("Hardness", "tools.decreaseBrushHardness", "tools.increaseBrushHardness", run)
-            VerticalDivider(Modifier.height(24.dp))
+            val presets = state.obj()?.get("brush.presets.list").arr("presets").mapNotNull { it.str("name") }
+            if (presets.isNotEmpty()) ChoiceChip("Brush", null, presets.map { it to it }, { run("tools.setBrush", buildJsonObject { put("preset", it) }) })
+            NumberChip("Size", brush.num("size"), 1.0, 1000.0, { set("size", it) }, unit = " px", log = true)
+            NumberChip("Hardness", brush.num("hardness")?.times(100), 0.0, 100.0, { set("hardness", it / 100) }, unit = "%", step = 5.0)
+            NumberChip("Opacity", brush.num("opacity")?.times(100), 1.0, 100.0, { set("opacity", it / 100) }, unit = "%", step = 5.0)
+            NumberChip("Flow", brush.num("flow")?.times(100), 1.0, 100.0, { set("flow", it / 100) }, unit = "%", step = 5.0)
             // A pen's pressure controls the size and the opacity only when these are on (both off by default, as on the desktop).
-            PressureToggle("Pressure: size", brush.bool("pressureSize") == true) { run("tools.setBrush", buildJsonObject { put("pressureSize", it) }) }
-            PressureToggle("Pressure: opacity", brush.bool("pressureOpacity") == true) { run("tools.setBrush", buildJsonObject { put("pressureOpacity", it) }) }
+            ToggleChip("Pressure: size", brush.bool("pressureSize") == true) { run("tools.setBrush", buildJsonObject { put("pressureSize", it) }) }
+            ToggleChip("Pressure: opacity", brush.bool("pressureOpacity") == true) { run("tools.setBrush", buildJsonObject { put("pressureOpacity", it) }) }
         }
-    }
-}
-
-@Composable
-private fun PressureToggle(label: String, on: Boolean, set: (Boolean) -> Unit) {
-    Text(
-        label, style = MaterialTheme.typography.labelMedium,
-        color = if (on) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.background(if (on) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent, androidx.compose.foundation.shape.RoundedCornerShape(6.dp))
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, androidx.compose.foundation.shape.RoundedCornerShape(6.dp))
-            .clickable { set(!on) }.padding(horizontal = 8.dp, vertical = 4.dp),
-    )
-}
-
-@Composable
-private fun Stepper(label: String, down: String, up: String, run: (String, JsonObject) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        IconButton(onClick = { run(down, NONE) }, modifier = Modifier.size(32.dp)) { Icon(Lucide.Minus, contentDescription = "Decrease $label", modifier = Modifier.size(16.dp)) }
-        IconButton(onClick = { run(up, NONE) }, modifier = Modifier.size(32.dp)) { Icon(Lucide.Plus, contentDescription = "Increase $label", modifier = Modifier.size(16.dp)) }
+        if (tool in MODE_TOOLS) { VerticalDivider(Modifier.height(24.dp)); ChoiceChip("Mode", ToolOptions.selectMode, SELECT_MODES, { ToolOptions.selectMode = it }) }
+        if (tool in TOLERANCE_TOOLS) {
+            VerticalDivider(Modifier.height(24.dp))
+            NumberChip("Tolerance", ToolOptions.tolerance.toDouble(), 0.0, 255.0, { ToolOptions.tolerance = it.toInt() }, step = 4.0)
+            ToggleChip("Contiguous", ToolOptions.contiguous) { ToolOptions.contiguous = it }
+        }
+        if (tool == "Gradient") ChoiceChip("Style", ToolOptions.gradientStyle, GRADIENT_STYLES, { ToolOptions.gradientStyle = it })
+        if (tool == "Type" || tool == "VerticalType") NumberChip("Size", ToolOptions.typeSize.toDouble(), 4.0, 400.0, { ToolOptions.typeSize = it.toInt() }, unit = " pt", log = true)
+        if (tool == "Polygon" || tool == "Star") NumberChip(if (tool == "Star") "Points" else "Sides", ToolOptions.sides.toDouble(), 3.0, 24.0, { ToolOptions.sides = it.toInt() })
+        if (tool == "Line") NumberChip("Weight", ToolOptions.lineWeight.toDouble(), 1.0, 200.0, { ToolOptions.lineWeight = it.toInt() }, unit = " px", log = true)
+        if (doc(state).bool("hasSelection") == true && tool !in PEN_TOOLS) { VerticalDivider(Modifier.height(24.dp)); Chip("Deselect") { run("select.deselect", NONE) } }
     }
 }
 
@@ -247,21 +280,39 @@ private fun colourOf(e: JsonElement?): Color {
     return if (c.size >= 3) Color(c[0], c[1], c[2], c.getOrElse(3) { 1f }) else Color.Black
 }
 
-/** Under the tools, as on the desktop: the foreground colour over the background one, with swap and default. */
+/**
+ * The foreground colour over the background one: a tap on either opens the colour picker for it.
+ * [withButtons] adds default and swap, as under the tools on the desktop.
+ */
 @Composable
-fun ToolFooter(state: JsonElement?, run: (String, JsonObject) -> Unit) {
+private fun ColourWells(state: JsonElement?, run: (String, JsonObject) -> Unit, well: androidx.compose.ui.unit.Dp, withButtons: Boolean) {
     val s = session(state)
     val fg = colourOf(s.obj()?.get("foreground")); val bg = colourOf(s.obj()?.get("background"))
-    Column(Modifier.padding(4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(Modifier.size(40.dp)) {
-            Box(Modifier.offset(14.dp, 14.dp).size(24.dp).background(bg).border(1.dp, MaterialTheme.colorScheme.outline))
-            Box(Modifier.size(24.dp).background(fg).border(1.dp, MaterialTheme.colorScheme.outline))
-        }
-        Row {
-            IconButton(onClick = { run("tools.defaultColors", NONE) }, modifier = Modifier.size(24.dp)) { Icon(Lucide.RotateCcw, contentDescription = "Default foreground and background colours", modifier = Modifier.size(12.dp)) }
-            IconButton(onClick = { run("tools.swapColors", NONE) }, modifier = Modifier.size(24.dp)) { Icon(Lucide.ArrowLeftRight, contentDescription = "Swap foreground and background colours", modifier = Modifier.size(12.dp)) }
-        }
+    // Which colour the picker is open for: "foreground", "background" or neither.
+    var picking by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+    picking?.let { which ->
+        app.loki.kit.ColorPickerDialog(
+            if (which == "foreground") "Foreground colour" else "Background colour", if (which == "foreground") fg else bg,
+            onPick = { c -> picking = null; if (c != null) run("tools.setColors", buildJsonObject { put(which, app.loki.kit.hexOf(c)) }) },
+            onDismiss = { picking = null },
+        )
     }
+    val step = well * 0.55f
+    Box(Modifier.size(well + step)) {
+        app.loki.kit.ColorWell(bg, "Background colour: tap to change", Modifier.offset(step, step).size(well)) { picking = "background" }
+        app.loki.kit.ColorWell(fg, "Foreground colour: tap to change", Modifier.size(well)) { picking = "foreground" }
+    }
+    if (withButtons) {
+        val size = if (app.loki.kit.isTouchPlatform) 36.dp else 24.dp
+        IconButton(onClick = { run("tools.defaultColors", NONE) }, modifier = Modifier.size(size)) { Icon(Lucide.RotateCcw, contentDescription = "Default foreground and background colours", modifier = Modifier.size(14.dp)) }
+        IconButton(onClick = { run("tools.swapColors", NONE) }, modifier = Modifier.size(size)) { Icon(Lucide.ArrowLeftRight, contentDescription = "Swap foreground and background colours", modifier = Modifier.size(14.dp)) }
+    }
+}
+
+/** Beside the tools, always in reach: the foreground and background colours (a tap on one changes it). */
+@Composable
+fun ToolFooter(state: JsonElement?, run: (String, JsonObject) -> Unit) {
+    Box(Modifier.padding(4.dp)) { ColourWells(state, run, if (app.loki.kit.isTouchPlatform) 28.dp else 24.dp, withButtons = false) }
 }
 
 @Composable
@@ -301,19 +352,35 @@ fun dockPanels(state: JsonElement?, revision: Int, run: (String, JsonObject) -> 
             val steps = d.arr("history").mapNotNull { (it as? JsonPrimitive)?.contentOrNull ?: it.str("name") }
             LazyColumn(m) {
                 itemsIndexed(steps) { i, step ->
+                    // A tap goes back to that state, as a click on the desktop's History panel does.
                     Text(step, style = MaterialTheme.typography.bodyMedium, fontWeight = if (i == steps.lastIndex) FontWeight.Bold else FontWeight.Normal,
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 36.dp).padding(horizontal = 12.dp, vertical = 8.dp))
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 36.dp).clickable(enabled = i != steps.lastIndex) { run("history.selectState", buildJsonObject { put("state", i) }) }.padding(horizontal = 12.dp, vertical = 8.dp))
                 }
             }
         },
     )
 }
 
+/** The blend modes the Layers panel offers, in the desktop's order (the engine's names, spaced for reading). */
+private val BLENDS: List<Pair<String, String>> = listOf(
+    "Normal", "Dissolve", "Darken", "Multiply", "ColorBurn", "LinearBurn", "DarkerColor", "Lighten", "Screen", "ColorDodge", "LinearDodge", "LighterColor",
+    "Overlay", "SoftLight", "HardLight", "VividLight", "LinearLight", "PinLight", "HardMix", "Difference", "Exclusion", "Subtract", "Divide",
+    "Hue", "Saturation", "Color", "Luminosity",
+).map { it to it.replace(Regex("(?<=[a-z])(?=[A-Z])"), " ") }
+
 /** Layers, top first: the eye shows or hides one, a tap selects it; new, duplicate and delete below. */
 @Composable
 private fun LayersPanel(d: JsonElement?, run: (String, JsonObject) -> Unit, modifier: Modifier) {
     val layers = d.arr("layers")
+    val current = layers.firstOrNull { it.bool("selected") == true }
     Column(modifier) {
+        current?.long("id")?.let { id ->
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                ChoiceChip("", current.str("blend") ?: "Normal", BLENDS, { run("layer.setProps", buildJsonObject { put("layer", id); put("blend", it) }) })
+                NumberChip("Opacity", (current.num("opacity") ?: 1.0) * 100, 0.0, 100.0, { run("layer.setProps", buildJsonObject { put("layer", id); put("opacity", it / 100) }) }, unit = "%", step = 5.0)
+            }
+            HorizontalDivider()
+        }
         LazyColumn(Modifier.weight(1f)) {
             itemsIndexed(layers) { _, l ->
                 val id = l.long("id") ?: return@itemsIndexed
@@ -338,6 +405,8 @@ private fun LayersPanel(d: JsonElement?, run: (String, JsonObject) -> Unit, modi
         }
         HorizontalDivider()
         Row(Modifier.fillMaxWidth().padding(4.dp), horizontalArrangement = Arrangement.End) {
+            IconButton(onClick = { run("layer.arrange.bringForward", NONE) }, modifier = Modifier.size(36.dp)) { Icon(Lucide.ArrowUp, contentDescription = "Move layer up", modifier = Modifier.size(18.dp)) }
+            IconButton(onClick = { run("layer.arrange.sendBackward", NONE) }, modifier = Modifier.size(36.dp)) { Icon(Lucide.ArrowDown, contentDescription = "Move layer down", modifier = Modifier.size(18.dp)) }
             IconButton(onClick = { run("layer.new.layer", NONE) }, modifier = Modifier.size(36.dp)) { Icon(Lucide.SquarePlus, contentDescription = "New layer", modifier = Modifier.size(18.dp)) }
             IconButton(onClick = { run("layer.duplicate", NONE) }, modifier = Modifier.size(36.dp)) { Icon(Lucide.CopyPlus, contentDescription = "Duplicate layer", modifier = Modifier.size(18.dp)) }
             IconButton(onClick = { run("layer.delete", NONE) }, modifier = Modifier.size(36.dp)) { Icon(Lucide.Trash2, contentDescription = "Delete layer", modifier = Modifier.size(18.dp)) }
@@ -385,7 +454,9 @@ val PEN_TOOLS = setOf("Pen", "FreeformPen", "CurvaturePen", "AddAnchorPoint", "D
 
 /** A selection's mode from the keys held, as on the desktop: Shift adds, Alt subtracts, both intersect. */
 private fun selectMode(m: app.loki.kit.CanvasMods): String = when {
-    m.shift && m.alt -> "intersect"; m.shift -> "add"; m.alt -> "subtract"; else -> "replace"
+    m.shift && m.alt -> "intersect"; m.shift -> "add"; m.alt -> "subtract"
+    // No keys held (a finger or a pen has none): what the options bar's Mode says.
+    else -> ToolOptions.selectMode
 }
 
 private fun colourHex(c: Color): String {
@@ -562,6 +633,7 @@ class CanvasTools {
             edit.target.isNotEmpty() -> ws.run("type.edit", buildJsonObject { put("layer", edit.target.toLongOrNull() ?: return@buildJsonObject); put("text", text) }) {}
             text.isNotBlank() -> ws.run("type.create", buildJsonObject {
                 put("x", edit.x); put("y", edit.y); put("text", text); if (ws.tool == "VerticalType") put("orientation", "vertical")
+                put("size", ToolOptions.typeSize); put("color", colourHex(colourOf(session(ws.state).obj()?.get("foreground"))))
             }) {}
         }
     }
@@ -694,23 +766,23 @@ class CanvasTools {
             tool == "ObjectSelection" -> ws.run("select.object", buildJsonObject {
                 if (click) put("point", xy(b)) else put("rect", rect()); put("mode", selectMode(mods))
             }) {}
-            tool == "MagicWand" -> at("select.magicWand") { put("mode", selectMode(mods)) }
+            tool == "MagicWand" -> at("select.magicWand") { put("mode", selectMode(mods)); put("tolerance", ToolOptions.tolerance); put("contiguous", ToolOptions.contiguous) }
             tool == "Crop" || tool == "PerspectiveCrop" -> if (!click) ws.run("image.crop", buildJsonObject {
                 put("x", x0.toInt()); put("y", y0.toInt()); put("width", w.toInt()); put("height", h.toInt())
             }) {}
             tool == "Eyedropper" || tool == "ColorSampler" -> sample(ws, b)
-            tool == "PaintBucket" -> at("paint.bucket")
-            tool == "MagicEraser" -> at("paint.magicEraser")
+            tool == "PaintBucket" -> at("paint.bucket") { put("tolerance", ToolOptions.tolerance); put("contiguous", ToolOptions.contiguous) }
+            tool == "MagicEraser" -> at("paint.magicEraser") { put("tolerance", ToolOptions.tolerance); put("contiguous", ToolOptions.contiguous) }
             tool == "RedEye" -> at("paint.redEye")
-            tool == "Gradient" -> if (!click) ws.run("paint.gradient", buildJsonObject { put("from", xy(a)); put("to", xy(b)) }) {}
+            tool == "Gradient" -> if (!click) ws.run("paint.gradient", buildJsonObject { put("from", xy(a)); put("to", xy(b)); put("style", ToolOptions.gradientStyle) }) {}
             tool == "Move" -> if (!click) ws.run("layer.translate", buildJsonObject {
                 put("dx", kotlin.math.round(b.x - a.x).toInt()); put("dy", kotlin.math.round(b.y - a.y).toInt())
             }) {}
             tool in setOf("Rectangle", "EllipseShape", "Triangle", "Polygon", "Star") -> if (!click) ws.run("shape.create", buildJsonObject {
                 put("kind", when (tool) { "EllipseShape" -> "ellipse"; "Triangle", "Polygon" -> "polygon"; "Star" -> "star"; else -> "rect" })
-                put("rect", rect()); if (tool == "Triangle") put("sides", 3)
+                put("rect", rect()); if (tool == "Triangle") put("sides", 3) else if (tool == "Polygon" || tool == "Star") put("sides", ToolOptions.sides)
             }) {}
-            tool == "Line" -> if (!click) ws.run("shape.create", buildJsonObject { put("kind", "line"); put("from", xy(a)); put("to", xy(b)) }) {}
+            tool == "Line" -> if (!click) ws.run("shape.create", buildJsonObject { put("kind", "line"); put("from", xy(a)); put("to", xy(b)); put("weight", ToolOptions.lineWeight) }) {}
             tool in setOf("Type", "VerticalType", "HorizontalTypeMask", "VerticalTypeMask") -> {
                 // A tap on text edits it; anywhere else starts new text there.
                 fun ask(cmd: String, p: JsonObject, then: (JsonElement?) -> Unit) = ws.call("engine.execute", buildJsonObject { put("command", cmd); put("params", p) }, then)
