@@ -50,6 +50,10 @@ import com.composables.icons.lucide.ArrowLeftRight
 import com.composables.icons.lucide.ArrowUp
 import com.composables.icons.lucide.Bandage
 import com.composables.icons.lucide.Blend
+import com.composables.icons.lucide.Droplets
+import com.composables.icons.lucide.Palette
+import com.composables.icons.lucide.Play
+import com.composables.icons.lucide.Sparkles
 import com.composables.icons.lucide.Brush
 import com.composables.icons.lucide.CopyPlus
 import com.composables.icons.lucide.Crop
@@ -90,10 +94,12 @@ import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 
 /** The document, then the session (foreground and background colours, open documents). */
-val STATE_COMMANDS: List<String> = listOf("document.inspect", "session.inspect", "brush.get", "path.info", "brush.presets.list")
+val STATE_COMMANDS: List<String> = listOf("document.inspect", "session.inspect", "brush.get", "path.info", "brush.presets.list", "swatches.list", "gradient.presets.list", "style.presets.list", "path.list", "actions.list")
 
 /** Commands this file runs, so the coverage test checks the engine still has them. */
 val PANEL_COMMANDS: Set<String> = setOf(
+    "swatches.use", "swatches.add", "swatches.list", "gradient.presets.select", "gradient.presets.list", "style.presets.apply", "style.presets.list",
+    "path.toSelection", "path.fill", "path.stroke", "path.delete", "path.list", "actions.play", "actions.list",
     "layer.select", "layer.setProps", "layer.new.layer", "layer.duplicate", "layer.delete",
     "tools.swapColors", "tools.defaultColors",
     "tools.decreaseBrushSize", "tools.increaseBrushSize", "tools.decreaseBrushHardness", "tools.increaseBrushHardness",
@@ -342,6 +348,11 @@ fun dockPanels(state: JsonElement?, revision: Int, run: (String, JsonObject) -> 
             ), m)
         },
         DockPanel("layers", "Layers", Lucide.Layers) { m -> LayersPanel(d, run, m) },
+        DockPanel("swatches", "Swatches", Lucide.Palette) { m -> SwatchesPanel(state, run, m) },
+        DockPanel("gradients", "Gradients", Lucide.Droplets) { m -> GradientsPanel(state, run, m) },
+        DockPanel("styles", "Styles", Lucide.Sparkles) { m -> StylesPanel(state, run, m) },
+        DockPanel("paths", "Paths", Lucide.PenTool) { m -> PathsPanel(state, run, m) },
+        DockPanel("actions", "Actions", Lucide.Play) { m -> ActionsPanel(state, run, m) },
         DockPanel("channels", "Channels", Lucide.Blend) { m ->
             val ch = d.obj()?.get("channels")
             val rows = listOfNotNull(ch.str("composite")?.let { it to "composite" }) +
