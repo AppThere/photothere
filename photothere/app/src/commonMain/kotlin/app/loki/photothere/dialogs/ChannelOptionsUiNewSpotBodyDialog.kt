@@ -54,7 +54,7 @@ fun ChannelOptionsUiNewSpotBodyDialog(onRun: (command: String, params: JsonObjec
                 val params = buildJsonObject {
                 if (f0.isNotBlank()) put("name", f0)
                 }
-                /* TODO: which command this dialog runs was not found */
+                onRun("channel.newSpot", params)
                 onDismiss()
             }) { Text("OK") }
         },

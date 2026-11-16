@@ -56,7 +56,7 @@ fun DuplicateLayerUiDialog(onRun: (command: String, params: JsonObject) -> Unit,
                 if (f0.isNotBlank()) put("name", f0)
                 if (f1.isNotBlank()) put("docName", f1)
                 }
-                /* TODO: which command this dialog runs was not found */
+                onRun("layer.duplicate", params)
                 onDismiss()
             }) { Text("OK") }
         },
