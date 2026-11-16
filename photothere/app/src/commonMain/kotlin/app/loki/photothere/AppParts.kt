@@ -260,6 +260,7 @@ fun OptionsBar(tool: String, tools: List<RailTool>, state: JsonElement?, run: (S
             ToggleChip("Pressure: size", brush.bool("pressureSize") == true) { run("tools.setBrush", buildJsonObject { put("pressureSize", it) }) }
             ToggleChip("Pressure: opacity", brush.bool("pressureOpacity") == true) { run("tools.setBrush", buildJsonObject { put("pressureOpacity", it) }) }
         }
+        if (tool == "Move" || tool in MODE_TOOLS) app.loki.kit.ModifierChips()
         if (tool in MODE_TOOLS) { VerticalDivider(Modifier.height(24.dp)); ChoiceChip("Mode", ToolOptions.selectMode, SELECT_MODES, { ToolOptions.selectMode = it }) }
         if (tool in TOLERANCE_TOOLS) {
             VerticalDivider(Modifier.height(24.dp))
@@ -586,6 +587,55 @@ class CanvasTools {
     var inkCommits by androidx.compose.runtime.mutableIntStateOf(0)
         private set
     private var lastInk: app.loki.kit.CanvasPoint? = null
+    /** The Move tool's box on the selected layers (document pixels: left, top, right, bottom), with handles a finger can hit. */
+    private var frame by androidx.compose.runtime.mutableStateOf<List<Float>?>(null)
+    /** The handle being dragged, where the press was, and where the box's corners are now. */
+    private var xGrab by androidx.compose.runtime.mutableStateOf<app.loki.kit.BoxGrab?>(null)
+    private var xStart = androidx.compose.ui.geometry.Offset.Zero
+    private var xQuad by androidx.compose.runtime.mutableStateOf<List<androidx.compose.ui.geometry.Offset>?>(null)
+
+    private fun frameBox(): app.loki.kit.TransformBox? = frame?.let { f ->
+        app.loki.kit.TransformBox(listOf(
+            androidx.compose.ui.geometry.Offset(f[0], f[1]), androidx.compose.ui.geometry.Offset(f[2], f[1]),
+            androidx.compose.ui.geometry.Offset(f[2], f[3]), androidx.compose.ui.geometry.Offset(f[0], f[3]),
+        ))
+    }
+
+    /**
+     * The Move tool's handles: a press on one scales (Shift keeps the shape, Alt scales about the
+     * centre) or, on the knob, turns (Shift in steps of 15°) the selected layers; the engine does it
+     * once, when the finger lifts (`edit.transform`). True when the press was one's.
+     */
+    private fun boxInput(i: app.loki.kit.CanvasInput, ws: app.loki.kit.WorkspaceContext, view: app.loki.kit.CanvasView): Boolean {
+        val p = i.points.lastOrNull() ?: return false
+        val at = androidx.compose.ui.geometry.Offset(p.x.toFloat(), p.y.toFloat())
+        val box = frameBox() ?: return false
+        when (i.phase) {
+            app.loki.kit.CanvasPhase.Down -> {
+                val g = box.grabAt(at, view) ?: return false
+                xGrab = g; xStart = box.point(g, view).let { if (g == app.loki.kit.BoxGrab.Rotate) at else it }
+                xQuad = box.corners
+                return true
+            }
+            app.loki.kit.CanvasPhase.Drag -> {
+                val g = xGrab ?: return false
+                xQuad = if (g == app.loki.kit.BoxGrab.Rotate) app.loki.kit.TransformBox.rotated(box.corners, xStart, at, snap = i.mods.shift)
+                else app.loki.kit.TransformBox.scaled(box.corners, g, xStart, at, keepAspect = i.mods.shift, fromCenter = i.mods.alt)
+                return true
+            }
+            app.loki.kit.CanvasPhase.Up -> {
+                val q = xQuad; val f = frame
+                xGrab = null; xQuad = null
+                if (q != null && f != null && q.size == 4) ws.run("edit.transform", buildJsonObject {
+                    put("rect", JsonArray(f.map { JsonPrimitive(kotlin.math.round(it.toDouble())) }))
+                    put("quad", JsonArray(q.map { JsonArray(listOf(JsonPrimitive(it.x.toDouble()), JsonPrimitive(it.y.toDouble()))) }))
+                }) {}
+                return true
+            }
+            app.loki.kit.CanvasPhase.Cancel -> { val was = xGrab != null; xGrab = null; xQuad = null; return was }
+            else -> return false
+        }
+    }
 
     /** The wet ink of a stroke at [p]: width in screen pixels and colour, following the brush and, where it says so, the pen's pressure. */
     private fun wet(tool: String, p: app.loki.kit.CanvasPoint, state: JsonElement?, zoom: Float): Pair<Float, Color> {
@@ -615,10 +665,17 @@ class CanvasTools {
 
     fun pans(tool: String) = tool == "Hand"
 
+    /** A finger on a handle of the Move tool's box drags it, even where fingers otherwise only pan (a pen has been used). */
+    fun claims(tool: String, x: Double, y: Double, view: app.loki.kit.CanvasView): Boolean =
+        tool == "Move" && frameBox()?.grabAt(androidx.compose.ui.geometry.Offset(x.toFloat(), y.toFloat()), view) != null
+
     fun onZoom(ws: app.loki.kit.WorkspaceContext, zoom: Float) {}
 
     /** The selection's outline, on a grid of about one screen pixel at this zoom. */
     fun onRevision(ws: app.loki.kit.WorkspaceContext, view: app.loki.kit.CanvasView) {
+        if (ws.tool == "Move") ws.call("loki.transformFrame", NONE) { r ->
+            frame = (r.obj()?.get("frame") as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.doubleOrNull?.toFloat() }?.takeIf { it.size == 4 }
+        } else frame = null
         if (doc(ws.state).bool("hasSelection") != true) { ants = FloatArray(0); animating = false; return }
         val step = if (view.zoom > 0f) kotlin.math.max(1, (1f / view.zoom).toInt()) else 1
         ws.call("loki.selectionOutline", buildJsonObject { put("step", step) }) { r ->
@@ -641,6 +698,7 @@ class CanvasTools {
     fun onInput(i: app.loki.kit.CanvasInput, ws: app.loki.kit.WorkspaceContext, view: app.loki.kit.CanvasView) {
         val pts = i.points
         val tool = ws.tool
+        if (tool == "Move" && i.device != app.loki.kit.InputDevice.Eraser && boxInput(i, ws, view)) return
         if (tool in PEN_TOOLS && i.device != app.loki.kit.InputDevice.Eraser) { penInput(i, ws, view); return }
         when (i.phase) {
             app.loki.kit.CanvasPhase.Hover -> hover = pts.lastOrNull()
@@ -816,6 +874,8 @@ class CanvasTools {
             }
         }
         val accent = Color(0xFF4C9AFF)
+        // The Move tool's box: where the layers are, or where the drag in hand will put them.
+        if (ws?.tool == "Move") (xQuad?.let { app.loki.kit.TransformBox(it) } ?: frameBox())?.let { b -> with(b) { draw(view, accent, xGrab) } }
         val tool = active ?: ws?.tool.orEmpty()
         // The work path while a path tool is in hand, and the path the Pen is drawing.
         if (ws?.tool in PEN_TOOLS) {

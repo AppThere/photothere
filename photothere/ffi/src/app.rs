@@ -24,6 +24,9 @@ pub(crate) fn call(inner: &mut Inner, method: &str, params: Value) -> Result<Val
     if method == "loki.selectionOutline" {
         return Ok(selection_outline(inner, &params));
     }
+    if method == "loki.transformFrame" {
+        return Ok(transform_frame(inner));
+    }
     inner.h.handle(method, params).map_err(|e| e.to_string())
 }
 
@@ -114,6 +117,29 @@ fn selection_outline(inner: &mut Inner, params: &Value) -> Value {
         *v = v.min(if k % 2 == 0 { wf } else { hf });
     }
     json!({"segments": segs, "step": step, "truncated": truncated})
+}
+
+/// The box Free Transform opens on the selected layers: `frame` is `[x0, y0, x1, y1]` in document
+/// pixels (the layers' content within the selection, as `edit.transform` takes its `rect`), or null
+/// when no layer is selected, the layer is empty, or the Background is the only one (it can't move).
+fn transform_frame(inner: &mut Inner) -> Value {
+    use photocraft_engine::transform_cmds::transform_frame as frame_of;
+    let none = json!({"frame": null});
+    let docs = inner.h.session.documents();
+    let Some(d) = inner.h.session.active_index().and_then(|i| docs.get(i)) else { return none };
+    let mut frame: Option<photocraft_geom::Rect> = None;
+    for id in d.selected_layers() {
+        let Some(layer) = d.doc.layer(id) else { continue };
+        let r = frame_of(&d.doc, layer);
+        if r.is_empty() {
+            continue;
+        }
+        frame = Some(frame.map_or(r, |f| f.union(&r)));
+    }
+    match frame {
+        Some(r) => json!({"frame": [r.x0, r.y0, r.x1, r.y1]}),
+        None => none,
+    }
 }
 
 /// Nothing is queued for the front end yet (the playbook's phase 6).
