@@ -186,7 +186,17 @@ private val SLOT_ICONS: Map<String, ImageVector> = mapOf(
     "PathSelection" to Lucide.MousePointer2, "Rectangle" to Lucide.Shapes, "Hand" to Lucide.Hand, "Zoom" to Lucide.ZoomIn,
 )
 
+/**
+ * Tools the desktop has and this canvas does not act on yet: a press with one only said so in the status line. They stay
+ * out of the rail until the canvas handles them (add the gesture in the dispatch below, then remove the id here).
+ * A slot whose every tool is listed (Frame) disappears; one with others keeps those.
+ */
+val NOT_YET: Set<String> = setOf(
+    "Artboard", "Slice", "SliceSelect", "Frame", "Ruler", "Note", "Count", "Patch", "ContentAwareMove", "CustomShape", "RotateView",
+)
+
 private fun railTool(id: String, slot: String): RailTool? {
+    if (id in NOT_YET) return null
     val t = TOOLS.firstOrNull { it.id == id } ?: return null
     return RailTool(t.id, t.title, icon = SLOT_ICONS[slot] ?: toolIcon(t.id))
 }
