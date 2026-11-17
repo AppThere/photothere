@@ -23,7 +23,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -80,8 +79,6 @@ import app.loki.kit.TouchTopBar
 import app.loki.kit.isTouchPlatform
 import app.loki.kit.parseChord
 import app.loki.kit.shortcutKeys
-import app.loki.photothere.dialogs.TRANSLATED_DIALOGS
-import app.loki.photothere.dialogs.TranslatedDialog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -148,8 +145,8 @@ fun App(
     var on by remember { mutableStateOf<Set<String>>(emptySet()) }
     var showCommands by remember { mutableStateOf(false) }
     var form by remember { mutableStateOf<CommandInfo?>(null) }
+    var adjust by remember { mutableStateOf<CommandInfo?>(null) }
     var result by remember { mutableStateOf<Pair<CommandInfo, JsonElement?>?>(null) }
-    var dialog by remember { mutableStateOf<TranslatedDialog?>(null) }
     var openPanel by remember { mutableStateOf<Panel?>(null) }
     var tool by remember { mutableStateOf(TOOLS.firstOrNull()?.id.orEmpty()) }
     val byId = remember(catalog) { catalog.associateBy { it.id } }
@@ -183,7 +180,8 @@ fun App(
             return
         }
         val c = byId[id] ?: return
-        if (c.needsInput) { form = c; return }
+        if (c.id in ADJUST_SPECS) { adjust = c; return }
+        if (c.asksFirst) { form = c; return }   // see CommandInfo.asksFirst: a required value, or a label ending in "…"
         scope.launch { execute(c, JsonObject(emptyMap()), show = true)?.let { status = it } }
     }
 
@@ -235,13 +233,18 @@ fun App(
     if (showCommands) {
         AllCommandsDialog(catalog, PROFILE, null, disabled, on, icon = { CommandIcon(it) }, onRun = ::run, onOptions = { id -> form = byId[id] }, onDismiss = { showCommands = false })
     }
+    adjust?.let { c ->
+        AdjustDialog(
+            c.label.removeSuffix("…"), c.location, ADJUST_SPECS.getValue(c.id),
+            apply = { p -> execute(c, p, show = false) == null },
+            undo = { byId[UNDO_COMMAND]?.let { execute(it, JsonObject(emptyMap()), show = false) } ?: Unit },
+            onClose = { adjust = null },
+        )
+    }
     form?.let { c ->
         CommandFormDialog(c, pickFile = pickFile, writesFile = { id -> "export" in id.lowercase() || "save" in id.lowercase() }, run = { p -> execute(c, p, show = true) }, onDismiss = { form = null })
     }
     result?.let { (c, answer) -> ResultDialog(c, answer, onChange = if (c.hasParams) ({ result = null; form = c }) else null, onDismiss = { result = null }) }
-    dialog?.let { d ->
-        d.show({ id, params -> byId[id]?.let { c -> scope.launch { execute(c, params, show = false)?.let { status = it } } } ?: run { status = "no such command: $id" } }, { dialog = null })
-    }
 
     val pickTool: (RailTool) -> Unit = { t -> tool = t.id; toolCommand(t.id)?.let { (id, params) -> runWith(id, params) } }
     // Every chord a command or a tool answers to: a command's shortcut first, then the tools' letters.
@@ -264,12 +267,12 @@ fun App(
             if (isTouchPlatform) {
                 TouchTopBar(
                     sheet, documentTitle(state), documentDirty(state), hasFileMenu = ribbon.any { it.name == "File" },
-                    trailing = { quickActions(); AppMenu(themeChoice, setTheme, onDialog = { dialog = it }, settingsIcon = true) },
+                    trailing = { quickActions(); AppMenu(themeChoice, setTheme, settingsIcon = true) },
                 )
             } else {
                 MenuBar(
                     ribbon, disabled, on, hasIcon = { commandIcon(it) != null }, icon = { CommandIcon(it) }, onRun = ::run,
-                    leading = { AppMenu(themeChoice, setTheme, onDialog = { dialog = it }) },
+                    leading = { AppMenu(themeChoice, setTheme) },
                     title = documentTitle(state),
                     trailing = quickActions,
                 )
@@ -306,19 +309,17 @@ fun SurfacePlaceholder(modifier: Modifier) {
     }
 }
 
-/** The app's own menu: the theme, and the dialogs translated from the desktop front end. */
+/** The app's own menu: the theme. (The engine's commands are on the menu bar; its forms open from there.) */
 @Composable
-private fun AppMenu(themeChoice: String, setTheme: (String) -> Unit, onDialog: (TranslatedDialog) -> Unit, settingsIcon: Boolean = false) {
+private fun AppMenu(themeChoice: String, setTheme: (String) -> Unit, settingsIcon: Boolean = false) {
     var open by remember { mutableStateOf(false) }
     // Beside a touch top bar's Menus button this is the app's settings, so it looks like settings.
     IconButton(onClick = { open = true }, modifier = Modifier.size(if (settingsIcon) 44.dp else 36.dp)) {
-        Icon(if (settingsIcon) Lucide.Settings else Lucide.Menu, contentDescription = if (settingsIcon) "Settings" else "Menu", modifier = Modifier.size(18.dp))
+        Icon(if (settingsIcon) Lucide.Settings else Lucide.Menu, contentDescription = if (settingsIcon) "Settings" else "Appearance", modifier = Modifier.size(18.dp))
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             for (choice in listOf("system", "light", "dark")) {
                 DropdownMenuItem(text = { Text((if (choice == themeChoice) "✓ " else "") + "Theme: " + choice.replaceFirstChar { it.uppercase() }) }, onClick = { open = false; setTheme(choice) })
             }
-            if (TRANSLATED_DIALOGS.isNotEmpty()) HorizontalDivider()
-            for (d in TRANSLATED_DIALOGS) DropdownMenuItem(text = { Text(d.title + "…") }, onClick = { open = false; onDialog(d) })
         }
     }
 }

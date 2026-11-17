@@ -1,0 +1,18 @@
+{
+  "BasicBlackWhite": "image.adjustments.blackWhite",
+  "BasicBrightnessContrast": "image.adjustments.brightnessContrast",
+  "BasicChannelMixer": "image.adjustments.channelMixer",
+  "BasicColorBalance": "image.adjustments.colorBalance",
+  "BasicPhotoFilter": "image.adjustments.photoFilter",
+  "BitmapDialog": "image.mode.bitmap",
+  "ChannelOptionsUi": "channel.options",
+  "ChannelOptionsUiNewSpotBody": "channel.newSpot",
+  "ColorRangeUi": "select.colorRange",
+  "DuplicateLayerUi": "layer.duplicate",
+  "GradientMapGradientMap": "image.adjustments.gradientMap",
+  "HueSaturationHueSaturation": "image.adjustments.hueSaturation",
+  "JpegOptionsUi": "file.saveACopy",
+  "LiquifyUi": "filter.liquify",
+  "NewGuideUi": "view.newGuide",
+  "ShapeDialog": "shape.create"
+}
