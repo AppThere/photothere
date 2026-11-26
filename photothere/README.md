@@ -11,7 +11,7 @@ Compose UI (app/, Kotlin, on Loki Kit)  ──  JSON commands  ──  C ABI (JN
 How it was made, and how to continue: Loki Text's
 [playbook](https://github.com/AppThere/loki-text/blob/main/loki-text/docs/kmp-responsive-ui-playbook.md)
 and [`egui2compose`](https://github.com/AppThere/loki-text/blob/main/loki-text/docs/egui2compose.md)
-(in the `loki-text/` folder of the WordCraft fork). Phases 1–4 are done here, and phase 5 is started.
+(in the `loki-text/` folder of the WordCraft fork). How far it has got: [`docs/parity.md`](docs/parity.md).
 
 ## The window
 
@@ -102,40 +102,20 @@ scripts/build-desktop.sh run          # cargo build --release -p loki-ffi, then 
 VARIANT=Release scripts/build-android.sh   # libloki_ffi.so for arm64-v8a and x86_64, then the APK
 adb install -r app/build/outputs/apk/release/app-release.apk
 cargo test -p loki-ffi                # the C ABI: hostile arguments, command state, surface, fixture
-gradle :app:jvmTest                   # the coverage test: every engine command has a way to it
-LOKI_SHOTS=/tmp/shots gradle :app:jvmTest --tests '*CoverageTest*' --rerun   # phone, tablet, desktop PNGs on the real engine
+scripts/test.sh                       # gradle :app:jvmTest: the coverage test (every engine command has a way to it), the parity checks; finds Gradle, or set GRADLE
+LOKI_SHOTS=/tmp/shots scripts/test.sh --tests '*CoverageTest*' --rerun   # phone, tablet, desktop PNGs on the real engine
 ```
 
 Use Gradle 8.14 or 9.1 with JDK 21 (see the playbook's pitfalls). Without the native library the
 app still opens, on the recorded command list, and nothing executes.
 
 After an engine change: `LOKI_UPDATE_FIXTURES=1 cargo test -p loki-ffi kotlin_command_fixture`,
-then `gradle :app:jvmTest`.
+then `scripts/test.sh`.
 
-## Status (November 2026)
+## Status
 
-Built against the ArtCraft release PhotoCraft v0.23.1. Verified on Linux x86_64, JVM desktop:
-
-- `cargo test -p loki-ffi --release`: 6 tests, including that a new session opens a document that renders (`a_new_session_has_a_document_that_renders`).
-- `gradle :app:jvmTest`: the coverage test passes against the engine's own list of 1009 commands.
-- Off-screen renders at 390, 800 and 1280 dp with the real engine library: the command bar from
-  `engine.commands` and the surface.
-
-The surface: `documents`: each open document's composite (`photocraft_compose::thumbnail`, at most 1:1), in a scrolling column fitted to the width.
-
-Not done (the work that is left, in the playbook's order):
-
-- **Command state and requests** (phase 6). `loki.commandState` reports disabled commands from
-  the engine's own checks; `on` (toggles) is empty, and `loki.uiRequests` is always empty because
-  the headless backend handles or drops requests itself.
-- **Dialogs**: the translated dialogs have the desktop's layout but guessed parameter names (see
-  `REPORT.md`); the kit's generated form (`CommandFormDialog`) is right by construction and is
-  what the command bar opens.
-- **Android**: one APK for arm64-v8a (phones, tablets, ARM Chromebooks) and x86_64 (Intel
-  Chromebooks). The release build is signed with the debug key so it installs on one's own devices;
-  distribution needs a real key, and R8 is off until JNA has keep rules. Open copies the chosen file
-  into app storage; saving writes to the app's own Documents folder (no Save As picker yet).
-- **iOS** (phase 9): not started.
+Built against the ArtCraft release PhotoCraft v0.23.1. What the app has, what it lacks next to the
+desktop front end, and what is left, with counts the tests check: [`docs/parity.md`](docs/parity.md).
 
 ## Rules
 
