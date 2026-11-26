@@ -23,7 +23,7 @@ class CoverageTest {
             ICON_COMMANDS + listOf(UNDO_COMMAND, REDO_COMMAND).filter { it.isNotEmpty() } +
             PANEL_COMMANDS + STATE_COMMANDS
         // Lower maxGaps as gestures are built; it may never rise.
-        val problems = coverageProblems(raw, PROFILE, parseRibbon(raw, PROFILE), { _, _ -> false }, named, emptySet(), maxGaps = 45)
+        val problems = coverageProblems(raw, PROFILE, parseRibbon(raw, PROFILE), { _, _ -> false }, named, emptySet(), maxGaps = 18)
             // Until an engine params doc is fixed, list here the ids whose form has no fields.
             .filterNot { line -> KNOWN_BARE_FORMS.any { line.startsWith("$it needs input") } }
         assertEquals(emptyList(), problems, problems.joinToString("\n"))

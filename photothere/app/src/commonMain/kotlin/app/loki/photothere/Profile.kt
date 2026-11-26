@@ -12,19 +12,30 @@ val TABS: List<String> = listOf(
     )
 
 /**
- * Commands a press or drag on the surface issues. Each starts in the profile's `pointerGaps`
- * (out of reach) and moves to `pointerGestures` when its gesture is built.
+ * Commands a press or drag on the surface should issue and nothing does yet (out of reach). `PointerGapsTest` fails
+ * when one of these is issued from the app's sources: move it to [POINTER_GESTURES] when its gesture is built.
  */
 val POINTER_GAPS: Set<String> = setOf(
-        "select.rect", "paint.stroke", "document.pixel", "layer.layerStyle.contours.new", "select.quick", "select.refineEdge",
-        "view.setRulerOrigin", "brush.mixer.sample", "paint.pencil", "paint.mixerBrush", "paint.mixerLoad", "paint.colorReplacement",
-        "paint.magicEraser", "paint.backgroundEraser", "paint.cloneStamp", "paint.patternStamp", "paint.healingBrush", "paint.spotHealing",
-        "paint.remove", "paint.dodge", "paint.burn", "paint.sponge", "paint.blur", "paint.sharpen",
-        "paint.smudge", "paint.historyBrush", "paint.artHistoryBrush", "paint.redEye", "select.magicWand", "select.lasso",
-        "select.magneticLasso", "paint.bucket", "type.hitTest", "document.sampleColor", "view.colorSamplers.add", "view.colorSamplers.move",
-        "layer.smartObjects.warp", "count.add", "count.remove", "count.move", "notes.add", "notes.set",
-        "layer.selectInRect", "layer.pickAt", "layer.new.frame",
-    )
+    "document.pixel", "layer.layerStyle.contours.new", "select.refineEdge", "view.setRulerOrigin",
+    "brush.mixer.sample", "paint.mixerLoad", "select.magneticLasso", "view.colorSamplers.add",
+    "view.colorSamplers.move", "layer.smartObjects.warp", "count.add", "count.remove",
+    "count.move", "notes.add", "notes.set", "layer.selectInRect",
+    "layer.pickAt", "layer.new.frame",
+)
+
+/**
+ * Commands a press or drag on the surface issues. `PointerGapsTest` fails when one of these is not issued from the app's
+ * sources (its id as a string literal in `AppParts.kt` or another file of the app).
+ */
+val POINTER_GESTURES: Set<String> = setOf(
+    "select.rect", "paint.stroke", "select.quick", "paint.pencil",
+    "paint.mixerBrush", "paint.colorReplacement", "paint.magicEraser", "paint.backgroundEraser",
+    "paint.cloneStamp", "paint.patternStamp", "paint.healingBrush", "paint.spotHealing",
+    "paint.remove", "paint.dodge", "paint.burn", "paint.sponge",
+    "paint.blur", "paint.sharpen", "paint.smudge", "paint.historyBrush",
+    "paint.artHistoryBrush", "paint.redEye", "select.magicWand", "select.lasso",
+    "paint.bucket", "type.hitTest", "document.sampleColor",
+)
 
 /** Commands that only read state the app already shows; not menu entries. */
 val STATE_READERS: Set<String> = setOf()
@@ -37,6 +48,7 @@ val TYPING_COMMANDS: Set<String> = setOf(
 /** What this app tells Loki Kit about its engine's commands. */
 val PROFILE = CommandProfile(
     tabs = TABS,
+    pointerGestures = POINTER_GESTURES,
     pointerGaps = POINTER_GAPS,
     typing = TYPING_COMMANDS,
     stateReaders = STATE_READERS,
