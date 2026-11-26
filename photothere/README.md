@@ -102,7 +102,7 @@ scripts/build-desktop.sh run          # cargo build --release -p loki-ffi, then 
 VARIANT=Release scripts/build-android.sh   # libloki_ffi.so for arm64-v8a and x86_64, then the APK
 adb install -r app/build/outputs/apk/release/app-release.apk
 cargo test -p loki-ffi                # the C ABI: hostile arguments, command state, surface, fixture
-gradle :app:jvmTest                   # the coverage test: every engine command has a way to it
+scripts/test.sh                       # gradle :app:jvmTest: the coverage test (every engine command has a way to it), the parity checks; finds Gradle, or set GRADLE
 LOKI_SHOTS=/tmp/shots gradle :app:jvmTest --tests '*CoverageTest*' --rerun   # phone, tablet, desktop PNGs on the real engine
 ```
 

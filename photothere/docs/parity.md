@@ -13,6 +13,8 @@ number, run the commands under [How parity is measured](#how-parity-is-measured)
 
 ## Summary
 
+<!-- parity-counts tools=69 notYet=11 panels=9 dialogs=40 dialogsCommand=14 dialogsOwn=4 dialogsHidden=22 adjustSpecs=3 gaps=18 gestures=27 -->
+
 PhotoThere shares PhotoCraft's engine, so every engine command is *in* the app; what differs is how
 much of the desktop's interface has been rebuilt on top of it.
 
@@ -168,8 +170,10 @@ In order of leverage:
 
 ## Keeping this document true
 
-The numbers in the Summary come from the sources listed at the top. After a change to tools, panels,
-dialogs or `POINTER_GAPS`, update the matching table, the date and branch, and say what was run. The
+The counts in the Summary come from the sources listed at the top, and `ParityDocTest` checks them: it
+recomputes each one from the code and fails when the `parity-counts` line, or the Summary row that
+repeats it, disagrees. After a change to tools, panels, dialogs or the pointer lists, run the test, then
+update that line, the matching table, the date and branch, and say what was run. The
 README's status section and `REPORT.md` are older than this file: `REPORT.md` is the generator's
 output at the time it ran, and the README predates the Swatches, Gradients, Styles, Paths and Actions
 panels and the tool rail.
