@@ -103,14 +103,14 @@ VARIANT=Release scripts/build-android.sh   # libloki_ffi.so for arm64-v8a and x8
 adb install -r app/build/outputs/apk/release/app-release.apk
 cargo test -p loki-ffi                # the C ABI: hostile arguments, command state, surface, fixture
 scripts/test.sh                       # gradle :app:jvmTest: the coverage test (every engine command has a way to it), the parity checks; finds Gradle, or set GRADLE
-LOKI_SHOTS=/tmp/shots gradle :app:jvmTest --tests '*CoverageTest*' --rerun   # phone, tablet, desktop PNGs on the real engine
+LOKI_SHOTS=/tmp/shots scripts/test.sh --tests '*CoverageTest*' --rerun   # phone, tablet, desktop PNGs on the real engine
 ```
 
 Use Gradle 8.14 or 9.1 with JDK 21 (see the playbook's pitfalls). Without the native library the
 app still opens, on the recorded command list, and nothing executes.
 
 After an engine change: `LOKI_UPDATE_FIXTURES=1 cargo test -p loki-ffi kotlin_command_fixture`,
-then `gradle :app:jvmTest`.
+then `scripts/test.sh`.
 
 ## Status
 
