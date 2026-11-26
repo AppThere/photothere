@@ -12,7 +12,7 @@ Issues and specs for this repo live as GitHub issues. Use the `gh` CLI for all o
 - **Apply / remove labels**: `gh issue edit <number> --add-label "..."` / `--remove-label "..."`
 - **Close**: `gh issue close <number> --comment "..."`
 
-This checkout has two remotes: `origin` is AppThere/photothere (the issue tracker for this repo) and `upstream` is storytold/photocraft. `gh` defaults to `upstream` here, so pass `-R AppThere/photothere` to every `gh issue`, `gh pr` and `gh label` command, or run `gh repo set-default AppThere/photothere` once. Issues must be enabled in that repo's settings; they were disabled on 2026-11-26.
+This checkout has two remotes: `origin` is AppThere/photothere (the issue tracker for this repo) and `upstream` is storytold/photocraft. `gh` defaults to `upstream` in a fresh clone, so run `gh repo set-default AppThere/photothere` once, or pass `-R AppThere/photothere` to every `gh issue`, `gh pr` and `gh label` command. `gh pr edit` fails on this repo (a deprecated Projects (classic) error); change a PR's title or body with `gh api -X PATCH repos/AppThere/photothere/pulls/<number> -f title=... -F body=@file`. Issues must be enabled in that repo's settings; they were disabled on 2026-11-26.
 
 ## Pull requests as a triage surface
 
